@@ -2,83 +2,110 @@ import { useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import './App.css';
+import L from 'leaflet';
+import iconUrl from './assets/marker-icon.png';
+import iconShadow from './assets/marker-shadow.png';
+import { useMapEvents } from 'react-leaflet/hooks';
+import { db } from "./firebase";
+import {
+  collection,
+  addDoc,
+  getDocs,
+  onSnapshot
+} from "firebase/firestore";  
 
-const sampleIncidents = [
-  { id: 1, position: [40.7128, -74.006], description: 'Theft reported here', type: 'theft' },
-  { id: 2, position: [40.7138, -74.001], description: 'Suspicious activity', type: 'suspicious' },
-];
+
+
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+  iconUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+  shadowUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png"
+});
+
+
+
+function LocationMarker({ onAddReport }) {
+  useMapEvents({
+    click(e) {
+      const latlng = e.latlng;
+      const description = prompt("Describe the issue at this location:");
+      if (description) {
+        onAddReport({ position: latlng, description });
+      }
+    },
+  });
+  return null;
+}
+useEffect(() => {
+  const unsub = onSnapshot(collection(db, "incidents"), (snapshot) => {
+    const loaded = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    setIncidents(loaded);
+  });
+
+  return () => unsub();
+}, []);
+
+
+function AddMarker() {
+  useMapEvents({
+    click: async (e) => {
+      const { lat, lng } = e.latlng;
+      const title = prompt("Describe the issue:");
+      if (title) {
+        await addDoc(collection(db, "incidents"), {
+          title,
+          lat,
+          lng,
+          createdAt: new Date()
+        });
+      }
+    }
+  });
+  return null;
+}
 
 function App() {
-  const [incidents, setIncidents] = useState(sampleIncidents);
-  const [desc, setDesc] = useState('');
-  const [lat, setLat] = useState('');
-  const [lng, setLng] = useState('');
+  const [reports, setReports] = useState([
+    {
+      position: { lat: 6.5244, lng: 3.3792 },
+      description: "Reported robbery incident here."
+    },
+  ]);
 
-  const handleReport = (e) => {
-    e.preventDefault();
-    const newReport = {
-      id: Date.now(),
-      position: [parseFloat(lat), parseFloat(lng)],
-      description: desc,
-    };
-    setIncidents([...incidents, newReport]);
-    setDesc('');
-    setLat('');
-    setLng('');
+  const addReport = (report) => {
+    setReports((prev) => [...prev, report]);
   };
 
   return (
-    <div className="flex flex-col h-screen">
-      <h1 className="text-2xl font-bold text-center py-4">SafeSpot – Public Safety Map</h1>
-      <div className="flex flex-1">
-        <div className="w-2/3 h-full">
-          <MapContainer center={[40.7128, -74.006]} zoom={14} className="h-full w-full">
-            <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution="&copy; OpenStreetMap contributors"
-            />
-            {incidents.map((incident) => (
-              <Marker key={incident.id} position={incident.position}>
-                <Popup>{incident.description}</Popup>
-              </Marker>
-            ))}
-          </MapContainer>
-        </div>
-        <div className="w-1/3 p-4 bg-gray-50">
-          <h2 className="text-lg font-semibold">Report an Incident</h2>
-          <form className="flex flex-col gap-2 mt-4" onSubmit={handleReport}>
-            <input
-              type="text"
-              placeholder="Description"
-              value={desc}
-              onChange={(e) => setDesc(e.target.value)}
-              className="border p-2 rounded"
-              required
-            />
-            <input
-              type="text"
-              placeholder="Latitude"
-              value={lat}
-              onChange={(e) => setLat(e.target.value)}
-              className="border p-2 rounded"
-              required
-            />
-            <input
-              type="text"
-              placeholder="Longitude"
-              value={lng}
-              onChange={(e) => setLng(e.target.value)}
-              className="border p-2 rounded"
-              required
-            />
-            <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-              Submit Report
-            </button>
-          </form>
-        </div>
-      </div>
+    <div className="h-screen w-screen flex flex-col">
+      <header className="bg-red-600 text-white p-4 text-center text-2xl font-bold shadow-md">
+        SafeSpot - Report & View Danger Zones
+      </header>
+      <h2>Click On Location To Report Incident</h2>
+      <main className="flex-1">
+        <MapContainer center={[6.5244, 3.3792]} zoom={13} className="h-full w-full">
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution="&copy; OpenStreetMap contributors"
+          />
+          <LocationMarker onAddReport={addReport} />
+          {reports.map((report, idx) => (
+            <Marker
+            key={incident.id}
+            position={[incident.lat, incident.lng]}>
+            <Popup>{incident.title}</Popup>
+          </Marker>
+          ))}
+        </MapContainer>
+      </main>
     </div>
   );
 }
-
 export default App;
