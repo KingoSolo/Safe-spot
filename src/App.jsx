@@ -6,27 +6,17 @@ import L from 'leaflet';
 import iconUrl from './assets/marker-icon.png';
 import iconShadow from './assets/marker-shadow.png';
 import { useMapEvents } from 'react-leaflet/hooks';
-import { db } from "./firebase";
-import {
-  collection,
-  addDoc,
-  getDocs,
-  onSnapshot
-} from "firebase/firestore";  
 
 
 
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl:
-    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
-  iconUrl:
-    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
-  shadowUrl:
-    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png"
+
+const DefaultIcon = L.icon({
+  iconUrl ,
+  iconSize: [25, 41],
+  shadowUrl: iconShadow,
+  shadowSize: [41, 41],
 });
-
-
+L.Marker.prototype.options.icon = DefaultIcon;
 
 function LocationMarker({ onAddReport }) {
   useMapEvents({
@@ -40,37 +30,6 @@ function LocationMarker({ onAddReport }) {
   });
   return null;
 }
-useEffect(() => {
-  const unsub = onSnapshot(collection(db, "incidents"), (snapshot) => {
-    const loaded = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-    setIncidents(loaded);
-  });
-
-  return () => unsub();
-}, []);
-
-
-function AddMarker() {
-  useMapEvents({
-    click: async (e) => {
-      const { lat, lng } = e.latlng;
-      const title = prompt("Describe the issue:");
-      if (title) {
-        await addDoc(collection(db, "incidents"), {
-          title,
-          lat,
-          lng,
-          createdAt: new Date()
-        });
-      }
-    }
-  });
-  return null;
-}
-
 function App() {
   const [reports, setReports] = useState([
     {
@@ -97,11 +56,13 @@ function App() {
           />
           <LocationMarker onAddReport={addReport} />
           {reports.map((report, idx) => (
-            <Marker
-            key={incident.id}
-            position={[incident.lat, incident.lng]}>
-            <Popup>{incident.title}</Popup>
-          </Marker>
+            <Marker position={report.position} key={idx}>
+              <Popup>
+                <strong>Danger Report</strong>
+                <br />
+                {report.description}
+              </Popup>
+            </Marker>
           ))}
         </MapContainer>
       </main>
